@@ -6,6 +6,7 @@ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
 SUBDIRS=\
 	libs \
 	gegl \
+	libs/npd \
 	seamless-clone \
 	operations \
 	bin \
