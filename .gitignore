@@ -46,3 +46,4 @@
 cscope.files
 cscope.out
 /*.project
+/nbproject
