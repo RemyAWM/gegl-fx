@@ -318,7 +318,7 @@ static void
 prepare (GeglOperation *operation)
 {
   GeglChantO *o = GEGL_CHANT_PROPERTIES (operation);
-  gegl_operation_set_format (operation, "output", babl_format ("RaGaBaA float"));
+  gegl_operation_set_format (operation, "output", babl_format ("R'aG'aB'aA float"));
   if (o->transform && o->transform[0] != '\0')
     {
       GeglMatrix3 matrix;
@@ -372,21 +372,20 @@ process (GeglOperation       *operation,
       gegl_buffer_clear (output, result);
     }
 
-
-
   if (o->fill_opacity > 0.0001 && o->fill)
     {
-      gdouble r,g,b,a;
-      gegl_color_get_rgba (o->fill, &r,&g,&b,&a);
-      a *= o->fill_opacity;
-      if (a>0.001)
+      gdouble color[4] = {0, 0, 0, 0};
+      gegl_color_get_pixel (o->fill, babl_format ("R'G'B'A double"), color);
+      color[3] *= o->fill_opacity;
+
+      if (color[3] > 0.001)
         {
-          GStaticMutex mutex = G_STATIC_MUTEX_INIT;
+          static GMutex mutex = { 0, };
           cairo_t *cr;
           cairo_surface_t *surface;
           guchar *data;
 
-          g_static_mutex_lock (&mutex);
+          g_mutex_lock (&mutex);
           data = (void*)gegl_buffer_linear_open (output, result, NULL, babl_format ("B'aG'aR'aA u8"));
           surface = cairo_image_surface_create_for_data (data,
                                                          CAIRO_FORMAT_ARGB32,
@@ -402,10 +401,10 @@ process (GeglOperation       *operation,
             }
 
           gegl_path_cairo_play (o->d, cr);
-          cairo_set_source_rgba (cr, r,g,b,a);
+          cairo_set_source_rgba (cr, color[0], color[1], color[2], color[3]);
           cairo_fill (cr);
 
-          g_static_mutex_unlock (&mutex);
+          g_mutex_unlock (&mutex);
           gegl_buffer_linear_close (output, data);
         }
     }

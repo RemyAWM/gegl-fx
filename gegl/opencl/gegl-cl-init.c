@@ -27,6 +27,7 @@
 #include "gegl-cl-init.h"
 #undef __GEGL_CL_INIT_MAIN__
 
+#include <glib.h>
 #include <gmodule.h>
 #include <string.h>
 #include <stdio.h>
@@ -35,6 +36,16 @@
 
 #include "gegl/gegl-debug.h"
 #include "gegl-config.h"
+
+GQuark gegl_opencl_error_quark (void);
+
+GQuark
+gegl_opencl_error_quark (void)
+{
+  return g_quark_from_static_string ("gegl-opencl-error-quark");
+}
+
+#define GEGL_OPENCL_ERROR (gegl_opencl_error_quark ())
 
 const char *gegl_cl_errstring(cl_int err) {
   static const char* strings[] =
@@ -117,6 +128,8 @@ const char *gegl_cl_errstring(cl_int err) {
 typedef struct
 {
   gboolean         is_accelerated;
+  gboolean         is_loaded;
+  gboolean         hard_disable;
   cl_context       ctx;
   cl_platform_id   platform;
   cl_device_id     device;
@@ -134,7 +147,7 @@ typedef struct
 }
 GeglClState;
 
-static GeglClState cl_state = {FALSE, NULL, NULL, NULL, NULL, FALSE, 0, 0, 0, 0, "", "", "", ""};
+static GeglClState cl_state = { 0, };
 static GHashTable *cl_program_hash = NULL;
 
 gboolean
@@ -146,6 +159,13 @@ gegl_cl_is_accelerated (void)
 void
 gegl_cl_disable (void)
 {
+  cl_state.is_accelerated = FALSE;
+}
+
+void
+gegl_cl_hard_disable (void)
+{
+  cl_state.hard_disable = TRUE;
   cl_state.is_accelerated = FALSE;
 }
 
@@ -198,7 +218,7 @@ gegl_cl_get_iter_height (void)
 #define CL_LOAD_FUNCTION(func)                                                    \
 if ((gegl_##func = (t_##func) GetProcAddress(module, #func)) == NULL)             \
   {                                                                               \
-    g_set_error (error, 0, 0, "symbol gegl_##func is NULL");                      \
+    g_set_error (error, GEGL_OPENCL_ERROR, 0, "symbol gegl_##func is NULL");      \
     FreeLibrary(module);                                                          \
     return FALSE;                                                                 \
   }
@@ -214,16 +234,18 @@ if ((gegl_##func = (t_##func) GetProcAddress(module, #func)) == NULL)           
 #define CL_LOAD_FUNCTION(func)                                                    \
 if (!g_module_symbol (module, #func, (gpointer *)& gegl_##func))                  \
   {                                                                               \
-    GEGL_NOTE (GEGL_DEBUG_OPENCL, "%s: %s", CL_LIBRARY_NAME, g_module_error ());   \
+    GEGL_NOTE (GEGL_DEBUG_OPENCL, "%s: %s", CL_LIBRARY_NAME, g_module_error ());  \
+    g_set_error (error, GEGL_OPENCL_ERROR, 0, "%s: %s", CL_LIBRARY_NAME, g_module_error ()); \
     if (!g_module_close (module))                                                 \
-      g_warning ("%s: %s", CL_LIBRARY_NAME, g_module_error ());                    \
+      g_warning ("%s: %s", CL_LIBRARY_NAME, g_module_error ());                   \
     return FALSE;                                                                 \
   }                                                                               \
 if (gegl_##func == NULL)                                                          \
   {                                                                               \
     GEGL_NOTE (GEGL_DEBUG_OPENCL, "symbol gegl_##func is NULL");                  \
+    g_set_error (error, GEGL_OPENCL_ERROR, 0, "symbol gegl_##func is NULL");      \
     if (!g_module_close (module))                                                 \
-      g_warning ("%s: %s", CL_LIBRARY_NAME, g_module_error ());                    \
+      g_warning ("%s: %s", CL_LIBRARY_NAME, g_module_error ());                   \
     return FALSE;                                                                 \
   }
 
@@ -234,7 +256,14 @@ gegl_cl_init (GError **error)
 {
   cl_int err;
 
-  if (!cl_state.is_accelerated)
+  if (cl_state.hard_disable)
+    {
+      GEGL_NOTE (GEGL_DEBUG_OPENCL, "OpenCL is disabled");
+      g_set_error (error, GEGL_OPENCL_ERROR, 0, "OpenCL is disabled");
+      return FALSE;
+    }
+
+  if (!cl_state.is_loaded)
     {
       #ifdef G_OS_WIN32
         HINSTANCE module;
@@ -251,6 +280,7 @@ gegl_cl_init (GError **error)
       if (!module)
         {
           GEGL_NOTE (GEGL_DEBUG_OPENCL, "Unable to load OpenCL library");
+          g_set_error (error, GEGL_OPENCL_ERROR, 0, "Unable to load OpenCL library");
           return FALSE;
         }
 
@@ -273,26 +303,24 @@ gegl_cl_init (GError **error)
       CL_LOAD_FUNCTION (clEnqueueWriteBuffer)
       CL_LOAD_FUNCTION (clEnqueueReadBuffer)
       CL_LOAD_FUNCTION (clEnqueueCopyBuffer)
-      CL_LOAD_FUNCTION (clEnqueueCopyBuffer)
-      CL_LOAD_FUNCTION (clEnqueueCopyBuffer)
-      CL_LOAD_FUNCTION (clEnqueueCopyBuffer)
       CL_LOAD_FUNCTION (clEnqueueReadBufferRect)
       CL_LOAD_FUNCTION (clEnqueueWriteBufferRect)
       CL_LOAD_FUNCTION (clEnqueueCopyBufferRect)
       CL_LOAD_FUNCTION (clCreateImage2D)
       CL_LOAD_FUNCTION (clCreateImage3D)
-      CL_LOAD_FUNCTION (clEnqueueWriteImage)
       CL_LOAD_FUNCTION (clEnqueueReadImage)
+      CL_LOAD_FUNCTION (clEnqueueWriteImage)
       CL_LOAD_FUNCTION (clEnqueueCopyImage)
-      CL_LOAD_FUNCTION (clEnqueueCopyBufferToImage)
       CL_LOAD_FUNCTION (clEnqueueCopyImageToBuffer)
-      CL_LOAD_FUNCTION (clEnqueueNDRangeKernel)
-      CL_LOAD_FUNCTION (clEnqueueBarrier)
-      CL_LOAD_FUNCTION (clFinish)
+      CL_LOAD_FUNCTION (clEnqueueCopyBufferToImage)
 
       CL_LOAD_FUNCTION (clEnqueueMapBuffer)
       CL_LOAD_FUNCTION (clEnqueueMapImage)
       CL_LOAD_FUNCTION (clEnqueueUnmapMemObject)
+
+      CL_LOAD_FUNCTION (clEnqueueNDRangeKernel)
+      CL_LOAD_FUNCTION (clEnqueueBarrier)
+      CL_LOAD_FUNCTION (clFinish)
 
       CL_LOAD_FUNCTION (clReleaseKernel)
       CL_LOAD_FUNCTION (clReleaseProgram)
@@ -304,6 +332,7 @@ gegl_cl_init (GError **error)
       if(err != CL_SUCCESS)
         {
           GEGL_NOTE (GEGL_DEBUG_OPENCL, "Could not create platform");
+          g_set_error (error, GEGL_OPENCL_ERROR, 0, "Could not create platform");
           return FALSE;
         }
 
@@ -314,8 +343,8 @@ gegl_cl_init (GError **error)
       err = gegl_clGetDeviceIDs (cl_state.platform, CL_DEVICE_TYPE_DEFAULT, 1, &cl_state.device, NULL);
       if(err != CL_SUCCESS)
         {
-          GEGL_NOTE (GEGL_DEBUG_OPENCL, "Error: %s", gegl_cl_errstring(err));
-          GEGL_NOTE (GEGL_DEBUG_OPENCL, "Could not create device");
+          GEGL_NOTE (GEGL_DEBUG_OPENCL, "Could not create device: %s", gegl_cl_errstring(err));
+          g_set_error (error, GEGL_OPENCL_ERROR, 0, "Could not create device: %s", gegl_cl_errstring(err));
           return FALSE;
         }
 
@@ -355,6 +384,7 @@ gegl_cl_init (GError **error)
       else
         {
           GEGL_NOTE (GEGL_DEBUG_OPENCL, "Image Support Error");
+          g_set_error (error, GEGL_OPENCL_ERROR, 0, "Image Support Error");
           return FALSE;
         }
 
@@ -362,6 +392,7 @@ gegl_cl_init (GError **error)
       if(err != CL_SUCCESS)
         {
           GEGL_NOTE (GEGL_DEBUG_OPENCL, "Could not create context");
+          g_set_error (error, GEGL_OPENCL_ERROR, 0, "Could not create context");
           return FALSE;
         }
 
@@ -370,19 +401,23 @@ gegl_cl_init (GError **error)
       if(err != CL_SUCCESS)
         {
           GEGL_NOTE (GEGL_DEBUG_OPENCL, "Could not create command queue");
+          g_set_error (error, GEGL_OPENCL_ERROR, 0, "Could not create command queue");
           return FALSE;
         }
 
       cl_state.is_accelerated = TRUE;
+      cl_state.is_loaded = TRUE;
 
       /* XXX: this dict is being leaked */
       cl_program_hash = g_hash_table_new (g_str_hash, g_str_equal);
 
-      if (cl_state.is_accelerated)
-        gegl_cl_color_compile_kernels();
+      gegl_cl_color_compile_kernels();
 
       GEGL_NOTE (GEGL_DEBUG_OPENCL, "OK");
     }
+
+  if (cl_state.is_loaded)
+    cl_state.is_accelerated = TRUE;
 
   return TRUE;
 }

@@ -436,10 +436,19 @@ gegl_tile_handler_cache_trim (GeglTileHandlerCache *cache)
   if (link != NULL)
     {
       CacheItem *last_writable = LINK_GET_ITEM (link);
+      GeglTile *tile = last_writable->tile;
+      GeglTileStorage *storage = tile->tile_storage;
 
       g_hash_table_remove (cache_ht, last_writable);
-      cache_total  -= last_writable->tile->size;
-      gegl_tile_unref (last_writable->tile);
+      cache_total -= tile->size;
+
+      if (storage && storage->hot_tile == tile)
+        {
+          storage->hot_tile = NULL;
+          gegl_tile_unref (tile);
+        }
+
+      gegl_tile_unref (tile);
       g_slice_free (CacheItem, last_writable);
       return TRUE;
     }
@@ -483,15 +492,20 @@ gegl_tile_handler_cache_void (GeglTileHandlerCache *cache,
   item = cache_lookup (cache, x, y, z);
   if (item)
     {
-      gegl_tile_void (item->tile);
       cache_total -= item->tile->size;
-      gegl_tile_unref (item->tile);
       g_queue_unlink (cache_queue, &item->link);
       g_hash_table_remove (cache_ht, item);
-      g_slice_free (CacheItem, item);
-      cache->count --;
+      cache->count--;
     }
   g_mutex_unlock (&mutex);
+
+  if (item)
+    {
+      gegl_tile_void (item->tile);
+      gegl_tile_unref (item->tile);
+    }
+
+  g_slice_free (CacheItem, item);
 }
 
 void

@@ -12,6 +12,7 @@
 /test-gegl-tile
 /test-misc
 /test-node-properties
+/test-opencl-colors
 /test-path
 /test-proxynop-processing
 /test-buffer-cast
@@ -19,3 +20,5 @@
 /test-buffer-changes
 /test-format-sensing
 /test-scaled-blit
+/test-svg-abyss
+/test-buffer-tile-voiding

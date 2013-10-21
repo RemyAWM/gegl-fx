@@ -59,9 +59,13 @@ static inline gboolean
 pid_is_running (gint pid)
 {
   HANDLE h;
+  DWORD exitcode = 0;
 
-  h = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
-  return (TerminateProcess(h, 0));
+  h = OpenProcess (PROCESS_QUERY_INFORMATION, FALSE, pid);
+  GetExitCodeProcess (h, &exitcode);
+  CloseHandle (h);
+
+  return exitcode == STILL_ACTIVE;
 }
 
 #else
@@ -229,15 +233,15 @@ gegl_init (gint    *argc,
   g_option_context_free (context);
 }
 
-static gchar    *cmd_gegl_swap       = NULL;
-static gchar    *cmd_gegl_cache_size = NULL;
-static gchar    *cmd_gegl_chunk_size = NULL;
-static gchar    *cmd_gegl_quality    = NULL;
-static gchar    *cmd_gegl_tile_size  = NULL;
-static gchar    *cmd_babl_tolerance  = NULL;
-static gchar    *cmd_gegl_threads    = NULL;
-static gboolean *cmd_gegl_opencl     = NULL;
-static gchar    *cmd_gegl_queue_size = NULL;
+static gchar    *cmd_gegl_swap           = NULL;
+static gchar    *cmd_gegl_cache_size     = NULL;
+static gchar    *cmd_gegl_chunk_size     = NULL;
+static gchar    *cmd_gegl_quality        = NULL;
+static gchar    *cmd_gegl_tile_size      = NULL;
+static gchar    *cmd_babl_tolerance      = NULL;
+static gchar    *cmd_gegl_threads        = NULL;
+static gboolean *cmd_gegl_disable_opencl = NULL;
+static gchar    *cmd_gegl_queue_size     = NULL;
 
 static const GOptionEntry cmd_entries[]=
 {
@@ -277,9 +281,9 @@ static const GOptionEntry cmd_entries[]=
      N_("The number of concurrent processing threads to use"), "<threads>"
     },
     {
-      "gegl-use-opencl", 0, 0,
-      G_OPTION_ARG_NONE, &cmd_gegl_opencl,
-      N_("Use OpenCL"), NULL
+      "gegl-disable-opencl", 0, 0,
+      G_OPTION_ARG_NONE, &cmd_gegl_disable_opencl,
+      N_("Disable OpenCL"), NULL
     },
     {
       "gegl-queue-size", 0, 0,
@@ -362,9 +366,9 @@ static void gegl_config_parse_env (GeglConfig *config)
       const char *opencl_env = g_getenv ("GEGL_USE_OPENCL");
 
       if (g_ascii_strcasecmp (opencl_env, "yes") == 0)
-        g_object_set (config, "use-opencl", TRUE, NULL);
+        ;
       else if (g_ascii_strcasecmp (opencl_env, "no") == 0)
-        g_object_set (config, "use-opencl", FALSE, NULL);
+        gegl_cl_hard_disable ();
       else
         g_warning ("Unknown value for GEGL_USE_OPENCL: %s", opencl_env);
     }
@@ -596,9 +600,8 @@ gegl_post_parse_hook (GOptionContext *context,
   /* FIXME: This comes after babl init and is useless */
   if (cmd_babl_tolerance)
     g_object_set (config, "babl-tolerance", atof(cmd_babl_tolerance), NULL);
-  /* don't override the environment variable */
-  if (cmd_gegl_opencl)
-    g_object_set (config, "use-opencl", cmd_gegl_opencl, NULL);
+  if (cmd_gegl_disable_opencl)
+    gegl_cl_hard_disable ();
   if (cmd_gegl_queue_size)
     config->queue_size = atoi (cmd_gegl_queue_size) * 1024 * 1024;
 

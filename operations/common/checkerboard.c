@@ -46,17 +46,26 @@ gegl_chant_color    (color2, _("Other color"),
                      "white",
                      _("The other cell color (defaults to 'white')"))
 
+gegl_chant_format (format, _("Babl Format"),
+                   _("The babl format of the output"))
+
 #else
 
 #define GEGL_CHANT_TYPE_POINT_RENDER
 #define GEGL_CHANT_C_FILE "checkerboard.c"
 
 #include "gegl-chant.h"
+#include <gegl-utils.h>
 
 static void
 prepare (GeglOperation *operation)
 {
-  gegl_operation_set_format (operation, "output", babl_format ("RGBA float"));
+  GeglChantO *o = GEGL_CHANT_PROPERTIES (operation);
+
+  if (o->format)
+    gegl_operation_set_format (operation, "output", o->format);
+  else
+    gegl_operation_set_format (operation, "output", babl_format ("RGBA float"));
 }
 
 static GeglRectangle
@@ -64,6 +73,11 @@ get_bounding_box (GeglOperation *operation)
 {
   return gegl_rectangle_infinite_plane ();
 }
+
+#define TILE_INDEX(coordinate,stride) \
+  (((coordinate) >= 0)?\
+      (coordinate) / (stride):\
+      ((((coordinate) + 1) /(stride)) - 1))
 
 static gboolean
 process (GeglOperation       *operation,
@@ -73,70 +87,58 @@ process (GeglOperation       *operation,
          gint                 level)
 {
   GeglChantO *o = GEGL_CHANT_PROPERTIES (operation);
-  gfloat     *out_pixel = out_buf;
-  gfloat      color1[4];
-  gfloat      color2[4];
-  gint        x = roi->x; /* initial x                   */
-  gint        y = roi->y; /*           and y coordinates */
+  const Babl *out_format = gegl_operation_get_format (operation, "output");
+  gint        pixel_size = babl_format_get_bytes_per_pixel (out_format);
+  guchar     *out_pixel = out_buf;
+  void       *color1 = alloca(pixel_size);
+  void       *color2 = alloca(pixel_size);
+  gint        y;
+  gint        x;
+  const gint  x_min = roi->x - o->x_offset;
+  const gint  y_min = roi->y - o->y_offset;
+  const gint  x_max = roi->x + roi->width - o->x_offset;
+  const gint  y_max = roi->y + roi->height - o->y_offset;
 
-  gegl_color_get_pixel (o->color1, babl_format ("RGBA float"), color1);
-  gegl_color_get_pixel (o->color2, babl_format ("RGBA float"), color2);
+  const gint  square_width  = o->x;
+  const gint  square_height = o->y;
 
-  while (n_pixels--)
+  gegl_color_get_pixel (o->color1, out_format, color1);
+  gegl_color_get_pixel (o->color2, out_format, color2);
+
+  for (y = y_min; y < y_max; y++)
     {
-      gint nx,ny;
+      x = x_min;
 
-      if ((x - o->x_offset) < 0)
-        {
-          nx = div (x - o->x_offset + 1, o->x).quot;
-        }
+      void *cur_color;
+
+      /* Figure out which box we're in */
+      gint tilex = TILE_INDEX (x, square_width);
+      gint tiley = TILE_INDEX (y, square_height);
+      if ((tilex + tiley) % 2 == 0)
+        cur_color = color1;
       else
-        {
-          nx = div (x - o->x_offset, o->x).quot;
-        }
+        cur_color = color2;
 
-      if ((y - o->y_offset) < 0)
+      while (x < x_max)
         {
-          ny = div (y - o->y_offset + 1, o->y).quot;
-        }
-      else
-        {
-          ny = div (y - o->y_offset, o->y).quot;
-        }
+          /* Figure out how long this stripe is */
+          gint stripe_end = (TILE_INDEX (x, square_width) + 1) * square_width;
+               stripe_end = stripe_end > x_max ? x_max : stripe_end;
+          gint count = stripe_end - x;
 
-      /* shift negative cell indices */
-      nx -= (x - o->x_offset) < 0 ? 1 : 0;
-      ny -= (y - o->y_offset) < 0 ? 1 : 0;
+          gegl_memset_pattern (out_pixel, cur_color, pixel_size, count);
+          out_pixel += count * pixel_size;
+          x = stripe_end;
 
-      if ( (nx+ny) % 2 == 0)
-        {
-          out_pixel[0]=color1[0];
-          out_pixel[1]=color1[1];
-          out_pixel[2]=color1[2];
-          out_pixel[3]=color1[3];
-        }
-      else
-        {
-          out_pixel[0]=color2[0];
-          out_pixel[1]=color2[1];
-          out_pixel[2]=color2[2];
-          out_pixel[3]=color2[3];
-        }
-
-      out_pixel += 4;
-
-      /* update x and y coordinates */
-      x++;
-      if (x>=roi->x + roi->width)
-        {
-          x=roi->x;
-          y++;
+          if (cur_color == color1)
+            cur_color = color2;
+          else
+            cur_color = color1;
         }
     }
 
   return  TRUE;
 }
-
 
 static void
 gegl_chant_class_init (GeglChantClass *klass)

@@ -15,6 +15,7 @@
  *
  * Copyright 2010 Øyvind Kolås <pippin@gimp.org>
  *           2012 Ville Sokk <ville.sokk@gmail.com>
+ *           2013 Téo Mazars <teo.mazars@ensimag.fr>
  */
 
 #include "config.h"
@@ -23,10 +24,21 @@
 
 #ifdef GEGL_CHANT_PROPERTIES
 
-gegl_chant_int (wrong_pixels, _("Wrong pixels"), G_MININT, G_MAXINT, 0, _("Number of differing pixels."))
-gegl_chant_double (max_diff, _("Maximum difference"), -G_MAXDOUBLE, G_MAXDOUBLE, 0.0, _("Maximum difference between two pixels."))
-gegl_chant_double (avg_diff_wrong, _("Average difference (wrong)"), -G_MAXDOUBLE, G_MAXDOUBLE, 0.0, _("Average difference between wrong pixels."))
-gegl_chant_double (avg_diff_total, _("Average difference (total)"), -G_MAXDOUBLE, G_MAXDOUBLE, 0.0, _("Average difference between all pixels."))
+gegl_chant_int    (wrong_pixels, _("Wrong pixels"),
+                   G_MININT, G_MAXINT, 0,
+                   _("Number of differing pixels."))
+
+gegl_chant_double (max_diff, _("Maximum difference"),
+                   -G_MAXDOUBLE, G_MAXDOUBLE, 0.0,
+                   _("Maximum difference between two pixels."))
+
+gegl_chant_double (avg_diff_wrong, _("Average difference (wrong)"),
+                   -G_MAXDOUBLE, G_MAXDOUBLE, 0.0,
+                   _("Average difference between wrong pixels."))
+
+gegl_chant_double (avg_diff_total, _("Average difference (total)"),
+                   -G_MAXDOUBLE, G_MAXDOUBLE, 0.0,
+                   _("Average difference between all pixels."))
 
 #else
 
@@ -35,12 +47,14 @@ gegl_chant_double (avg_diff_total, _("Average difference (total)"), -G_MAXDOUBLE
 
 #include "gegl-chant.h"
 
+#define ERROR_TOLERANCE 0.01
+#define SQR(x)          ((x) * (x))
 
 static void
 prepare (GeglOperation *self)
 {
-  gegl_operation_set_format (self, "input", babl_format ("CIE Lab float"));
-  gegl_operation_set_format (self, "aux", babl_format ("CIE Lab float"));
+  gegl_operation_set_format (self, "input",  babl_format ("CIE Lab alpha float"));
+  gegl_operation_set_format (self, "aux",    babl_format ("CIE Lab alpha float"));
   gegl_operation_set_format (self, "output", babl_format ("R'G'B' u8"));
 }
 
@@ -49,12 +63,15 @@ get_required_for_output (GeglOperation       *operation,
                          const gchar         *input_pad,
                          const GeglRectangle *region)
 {
-  GeglRectangle result = *gegl_operation_source_get_bounding_box (operation, "input");
-
-  return result;
+  return *gegl_operation_source_get_bounding_box (operation, "input");
 }
 
-#define SQR(x) ((x) * (x))
+static GeglRectangle
+get_cached_region (GeglOperation       *operation,
+                   const GeglRectangle *roi)
+{
+  return *gegl_operation_source_get_bounding_box (operation, "input");
+}
 
 static gboolean
 process (GeglOperation       *operation,
@@ -64,129 +81,109 @@ process (GeglOperation       *operation,
          const GeglRectangle *result,
          gint                 level)
 {
-  GeglChantO  *props        = GEGL_CHANT_PROPERTIES (operation);
-  gdouble      max_diff     = 0.0;
-  gdouble      diffsum      = 0.0;
-  gint         wrong_pixels = 0;
-  const Babl*  cielab       = babl_format ("CIE Lab float");
-  const Babl*  rgbaf        = babl_format ("RGBA float");
-  const Babl*  srgb         = babl_format ("R'G'B' u8");
-  gint         pixels, i;
-  gfloat      *in_buf, *aux_buf, *a, *b;
-  gfloat      *in_buf_rgba, *aux_buf_rgba, *aalpha, *balpha;
-  guchar      *out_buf, *out;
+  GeglChantO         *props        = GEGL_CHANT_PROPERTIES (operation);
+  gdouble             max_diff     = 0.0;
+  gdouble             diffsum      = 0.0;
+  gint                wrong_pixels = 0;
+  const Babl         *cielab       = babl_format ("CIE Lab alpha float");
+  const Babl         *srgb         = babl_format ("R'G'B' u8");
+  const Babl         *yadbl        = babl_format ("YA double");
+  GeglBuffer         *diff_buffer;
+  GeglBufferIterator *iter;
 
   if (aux == NULL)
     return TRUE;
 
-  in_buf = g_malloc (result->height * result->width * babl_format_get_bytes_per_pixel (cielab));
-  aux_buf = g_malloc (result->height * result->width * babl_format_get_bytes_per_pixel (cielab));
+  diff_buffer = gegl_buffer_new (result, yadbl);
 
-  in_buf_rgba = g_malloc (result->height * result->width * babl_format_get_bytes_per_pixel (rgbaf));
-  aux_buf_rgba = g_malloc (result->height * result->width * babl_format_get_bytes_per_pixel (rgbaf));
+  iter = gegl_buffer_iterator_new (diff_buffer, result, 0, yadbl,
+                                   GEGL_BUFFER_WRITE, GEGL_ABYSS_NONE);
 
-  out_buf = g_malloc (result->height * result->width * babl_format_get_bytes_per_pixel (srgb));
+  gegl_buffer_iterator_add (iter, input, result, 0, cielab,
+                            GEGL_BUFFER_READ, GEGL_ABYSS_NONE);
 
-  gegl_buffer_get (input, result, 1.0, cielab, in_buf, GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_NONE);
-  gegl_buffer_get (aux, result, 1.0, cielab, aux_buf, GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_NONE);
+  gegl_buffer_iterator_add (iter, aux, result, 0, cielab,
+                            GEGL_BUFFER_READ, GEGL_ABYSS_NONE);
 
-  gegl_buffer_get (input, result, 1.0, rgbaf, in_buf_rgba, GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_NONE);
-  gegl_buffer_get (aux, result, 1.0, rgbaf, aux_buf_rgba, GEGL_AUTO_ROWSTRIDE, GEGL_ABYSS_NONE);
-
-  a   = in_buf;
-  b   = aux_buf;
-  out = out_buf;
-
-  aalpha = in_buf_rgba;
-  balpha = aux_buf_rgba;
-
-  pixels = result->width * result->height;
-
-  for (i = 0; i < pixels; i++)
+  while (gegl_buffer_iterator_next (iter))
     {
-      gdouble diff = sqrt (SQR(a[0] - b[0])+
-                           SQR(a[1] - b[1])+
-                           SQR(a[2] - b[2]));
+      gint    i;
+      gdouble *data_out = iter->data[0];
+      gfloat  *data_in1 = iter->data[1];
+      gfloat  *data_in2 = iter->data[2];
 
-      gdouble alpha_diff = abs(aalpha[3] - balpha[3]) * 100.0;
-
-      if (alpha_diff > diff)
-        diff = alpha_diff;
-
-      if (diff >= 0.01)
+      for (i = 0; i < iter->length; i++)
         {
-          wrong_pixels++;
-          diffsum += diff;
-          if (diff > max_diff)
-            max_diff = diff;
-          out[0] = (diff / 100.0 * 255);
-          out[1] = 0;
-          out[2] = a[0] / 100.0 * 255;
+          gdouble diff = sqrt (SQR (data_in1[0] - data_in2[0]) +
+                               SQR (data_in1[1] - data_in2[1]) +
+                               SQR (data_in1[2] - data_in2[2]));
+
+          gdouble alpha_diff = fabs (data_in1[3] - data_in2[3]) * 100.0;
+
+          diff = MAX (diff, alpha_diff);
+
+          if (diff >= ERROR_TOLERANCE)
+            {
+              wrong_pixels++;
+              diffsum += diff;
+              if (diff > max_diff)
+                max_diff = diff;
+              data_out[0] = diff;
+              data_out[1] = data_in1[0];
+            }
+          else
+            {
+              data_out[0] = 0.0;
+              data_out[1] = data_in1[0];
+            }
+
+          data_out += 2;
+          data_in1 += 4;
+          data_in2 += 4;
         }
-      else
-        {
-          out[0] = a[0] / 100.0 * 255;
-          out[1] = a[0] / 100.0 * 255;
-          out[2] = a[0] / 100.0 * 255;
-        }
-      a   += 3;
-      aalpha += 4;
-      b   += 3;
-      balpha += 4;
-      out += 3;
     }
 
-  a   = in_buf;
-  b   = aux_buf;
-  out = out_buf;
+  iter  = gegl_buffer_iterator_new (output, result, 0, srgb,
+                                    GEGL_BUFFER_WRITE, GEGL_ABYSS_NONE);
 
-  aalpha = in_buf_rgba;
-  balpha = aux_buf_rgba;
+  gegl_buffer_iterator_add (iter, diff_buffer, result, 0, yadbl,
+                            GEGL_BUFFER_READ, GEGL_ABYSS_NONE);
 
-  if (wrong_pixels)
-    for (i = 0; i < pixels; i++)
-      {
-        gdouble diff = sqrt (SQR(a[0] - b[0])+
-                             SQR(a[1] - b[1])+
-                             SQR(a[2] - b[2]));
+  while (gegl_buffer_iterator_next (iter))
+    {
+      gint     i;
+      guchar  *out  = iter->data[0];
+      gdouble *data = iter->data[1];
 
-        gdouble alpha_diff = abs(aalpha[3] - balpha[3]) * 100.0;
+      for (i = 0; i < iter->length; i++)
+        {
+          gdouble diff = data[0];
+          gdouble a = data[1];
 
-        if (alpha_diff > diff)
-          diff = alpha_diff;
+          if (diff >= 0.01)
+            {
+              out[0] = CLAMP ((100 - a) / 100.0 * 64 + 32, 0, 255);
+              out[1] = CLAMP (diff / max_diff * 255, 0, 255);
+              out[2] = 0;
+            }
+          else
+            {
+              out[0] = CLAMP (a / 100.0 * 255, 0, 255);
+              out[1] = CLAMP (a / 100.0 * 255, 0, 255);
+              out[2] = CLAMP (a / 100.0 * 255, 0, 255);
+            }
 
-        if (diff >= 0.01)
-          {
-            out[0] = (100 - a[0]) / 100.0 * 64 + 32;
-            out[1] = (diff / max_diff * 255);
-            out[2] = 0;
-          }
-        else
-          {
-            out[0] = a[0] / 100.0 * 255;
-            out[1] = a[0] / 100.0 * 255;
-            out[2] = a[0] / 100.0 * 255;
-          }
-        a   += 3;
-        aalpha += 4;
-        b   += 3;
-        balpha += 4;
-        out += 3;
-      }
+          out  += 3;
+          data += 2;
+        }
+    }
 
-  gegl_buffer_set (output, result, 1.0, srgb, out_buf, GEGL_AUTO_ROWSTRIDE);
-
-  g_free (in_buf);
-  g_free (aux_buf);
-  g_free (out_buf);
-
-  g_free (in_buf_rgba);
-  g_free (aux_buf_rgba);
+  g_object_unref (diff_buffer);
 
   props->wrong_pixels   = wrong_pixels;
   props->max_diff       = max_diff;
   props->avg_diff_wrong = diffsum / wrong_pixels;
-  props->avg_diff_total = diffsum / pixels;
+  props->avg_diff_total = diffsum / (result->width * result->height);
 
   return TRUE;
 }
@@ -202,15 +199,16 @@ gegl_chant_class_init (GeglChantClass *klass)
 
   operation_class->prepare                 = prepare;
   operation_class->get_required_for_output = get_required_for_output;
+  operation_class->get_cached_region       = get_cached_region;
   composer_class->process                  = process;
 
   gegl_operation_class_set_keys (operation_class,
-                                 "name"       , "gegl:image-compare",
-                                 "categories" , "programming",
-                                 "description", _("Compares if input and aux buffers are "
-                                                  "different. Results are saved in the "
-                                                  "properties."),
-                                 NULL);
+    "name"       , "gegl:image-compare",
+    "categories" , "programming",
+    "description", _("Compares if input and aux buffers are "
+                     "different. Results are saved in the "
+                     "properties."),
+    NULL);
 }
 
 #endif

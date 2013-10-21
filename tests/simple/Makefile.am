@@ -1,24 +1,28 @@
 # Make the tests run against the build and not the installation
 TESTS_ENVIRONMENT = \
-	GEGL_PATH=$(top_builddir)/operations/
+	GEGL_PATH=$(top_builddir)/operations/ \
 	ABS_TOP_BUILDDIR=$(top_builddir) \
 	ABS_TOP_SRCDIR=$(top_srcdir)
 
 # The tests
-noinst_PROGRAMS = \
+noinst_PROGRAMS =			\
+	test-buffer-cast		\
+	test-buffer-changes		\
+	test-buffer-extract		\
+	test-buffer-tile-voiding	\
 	test-change-processor-rect	\
-	test-gegl-tile			\
 	test-color-op			\
+	test-format-sensing		\
 	test-gegl-rectangle		\
+	test-gegl-tile			\
+	test-image-compare		\
 	test-misc			\
 	test-node-properties		\
+	test-opencl-colors		\
 	test-path			\
-	test-buffer-extract \
-	test-buffer-cast  \
-	test-buffer-changes \
-	test-proxynop-processing \
-	test-format-sensing \
-	test-scaled-blit
+	test-proxynop-processing	\
+	test-scaled-blit		\
+	test-svg-abyss
 
 EXTRA_DIST = test-exp-combine.sh
 
@@ -43,3 +47,6 @@ AM_CFLAGS = $(DEP_CFLAGS) $(BABL_CFLAGS)
 # Common libs
 LIBS = $(top_builddir)/gegl/libgegl-$(GEGL_API_VERSION).la	\
 	$(DEP_LIBS) $(BABL_LIBS)
+
+clean-local:
+	rm -f test-exp-combine.hdr test-exp-combine-diff.png

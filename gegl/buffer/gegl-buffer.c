@@ -331,14 +331,16 @@ gboolean
 gegl_buffer_set_extent (GeglBuffer          *buffer,
                         const GeglRectangle *extent)
 {
+  GeglBufferHeader *header;
+
   g_return_val_if_fail (GEGL_IS_BUFFER (buffer), FALSE);
 
-  (*(GeglRectangle*) gegl_buffer_get_extent (buffer)) = *extent;
+  buffer->extent = *extent;
 
-  if ((GeglBufferHeader*)(gegl_buffer_backend (buffer)->priv->header))
+  header = gegl_buffer_backend (buffer)->priv->header;
+
+  if (header)
     {
-      GeglBufferHeader *header =
-        ((GeglBufferHeader*)(gegl_buffer_backend (buffer)->priv->header));
       header->x = buffer->extent.x;
       header->y = buffer->extent.y;
       header->width = buffer->extent.width;
@@ -651,8 +653,8 @@ gegl_buffer_constructor (GType                  type,
     {
       if (GEGL_IS_BUFFER (source))
         {
-          buffer->extent.x = GEGL_BUFFER (source)->extent.x;
-          buffer->extent.y = GEGL_BUFFER (source)->extent.y;
+          buffer->extent.x = GEGL_BUFFER (source)->extent.x - buffer->shift_x;
+          buffer->extent.y = GEGL_BUFFER (source)->extent.y - buffer->shift_y;
           buffer->extent.width  = GEGL_BUFFER (source)->extent.width;
           buffer->extent.height = GEGL_BUFFER (source)->extent.height;
         }
@@ -1002,6 +1004,14 @@ gegl_buffer_get_extent (GeglBuffer *buffer)
   g_return_val_if_fail (GEGL_IS_BUFFER (buffer), NULL);
 
   return &(buffer->extent);
+}
+
+const GeglRectangle *
+gegl_buffer_get_abyss (GeglBuffer *buffer)
+{
+  g_return_val_if_fail (GEGL_IS_BUFFER (buffer), NULL);
+
+  return &(buffer->abyss);
 }
 
 

@@ -276,7 +276,7 @@ cl_process (GeglOperation       *operation,
                                              op_area->right,
                                              op_area->top,
                                              op_area->bottom,
-                                             GEGL_ABYSS_NONE);
+                                             GEGL_ABYSS_CLAMP);
 
   gint aux  = gegl_buffer_cl_iterator_add_2 (i,
                                              NULL,
@@ -320,13 +320,9 @@ process (GeglOperation       *operation,
   GeglOperationAreaFilter *op_area;
   op_area = GEGL_OPERATION_AREA_FILTER (operation);
 
-  if (gegl_cl_is_accelerated ())
-    {
-      if (cl_process (operation, input, output, result))
-        return TRUE;
-      else
-        gegl_cl_disable();
-    }
+  if (gegl_operation_use_opencl (operation))
+    if (cl_process (operation, input, output, result))
+      return TRUE;
 
   rect = *result;
   tmprect = *result;

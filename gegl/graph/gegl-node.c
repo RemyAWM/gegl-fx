@@ -51,7 +51,8 @@ enum
   PROP_OP_CLASS,
   PROP_OPERATION,
   PROP_NAME,
-  PROP_DONT_CACHE
+  PROP_DONT_CACHE,
+  PROP_USE_OPENCL
 };
 
 enum
@@ -69,7 +70,6 @@ struct _GeglNodePrivate
   GSList          *children;  /*  used for children */
   GeglNode        *parent;
   gchar           *name;
-  GeglProcessor   *processor;
   GeglEvalManager *eval_manager;
 };
 
@@ -150,8 +150,17 @@ gegl_node_class_init (GeglNodeClass *klass)
                                    g_param_spec_boolean ("dont-cache",
                                                          "Do not cache",
                                                         "Do not cache the result of this operation, the property is inherited by children created from a node.",
-                                                        TRUE,
+                                                        FALSE,
+                                                        G_PARAM_CONSTRUCT |
                                                         G_PARAM_READWRITE));
+
+  g_object_class_install_property (gobject_class, PROP_USE_OPENCL,
+                                   g_param_spec_boolean ("use-opencl",
+                                                         "Use OpenCL",
+                                                         "Use the OpenCL version of this operation if available, this property is inherited by children created from a node.",
+                                                         TRUE,
+                                                         G_PARAM_CONSTRUCT |
+                                                         G_PARAM_READWRITE));
 
 
   g_object_class_install_property (gobject_class, PROP_NAME,
@@ -235,11 +244,6 @@ gegl_node_dispose (GObject *gobject)
       self->priv->eval_manager = NULL;
     }
 
-  if (self->priv->processor)
-    {
-      g_object_unref (self->priv->processor);
-      self->priv->processor = NULL;
-    }
   G_OBJECT_CLASS (gegl_node_parent_class)->dispose (gobject);
 }
 
@@ -294,6 +298,10 @@ gegl_node_local_set_property (GObject      *gobject,
         node->dont_cache = g_value_get_boolean (value);
         break;
 
+      case PROP_USE_OPENCL:
+        node->use_opencl = g_value_get_boolean (value);
+        break;
+
       case PROP_OP_CLASS:
         {
           va_list null; /* dummy to pass along, it's not used anyways since
@@ -335,6 +343,11 @@ gegl_node_local_get_property (GObject    *gobject,
       case PROP_DONT_CACHE:
         g_value_set_boolean (value, node->dont_cache);
         break;
+
+      case PROP_USE_OPENCL:
+        g_value_set_boolean (value, node->use_opencl);
+        break;
+
       case PROP_NAME:
         g_value_set_string (value, gegl_node_get_name (node));
         break;
@@ -921,7 +934,7 @@ gegl_node_blit (GeglNode            *self,
   g_return_if_fail (GEGL_IS_NODE (self));
   g_return_if_fail (roi != NULL);
 
-  if (flags == GEGL_BLIT_DEFAULT)
+  if (!flags)
     {
       GeglBuffer *buffer;
 
@@ -944,18 +957,28 @@ gegl_node_blit (GeglNode            *self,
     }
   else if (flags & GEGL_BLIT_CACHE)
     {
-      GeglCache *cache = gegl_node_get_cache (self);
+      GeglCache  *cache  = gegl_node_get_cache (self);
+      GeglBuffer *buffer = GEGL_BUFFER (cache);
+
       if (!(flags & GEGL_BLIT_DIRTY))
         {
-          if (!self->priv->processor)
-           self->priv->processor = gegl_node_new_processor (self, roi);
+          if (scale != 1.0)
+            {
+              const GeglRectangle unscaled_roi = _gegl_get_required_for_scale (format, roi, scale);
 
-          gegl_processor_set_rectangle (self->priv->processor, roi);
-          while (gegl_processor_work (self->priv->processor, NULL));
+              gegl_node_blit_buffer (self, buffer, &unscaled_roi);
+              gegl_cache_computed (cache, &unscaled_roi);
+            }
+          else
+            {
+              gegl_node_blit_buffer (self, buffer, roi);
+              gegl_cache_computed (cache, roi);
+            }
         }
+
       if (destination_buf && cache)
         {
-          gegl_buffer_get (GEGL_BUFFER (cache), roi, scale,
+          gegl_buffer_get (buffer, roi, scale,
                            format, destination_buf, rowstride,
                            GEGL_ABYSS_NONE);
         }
@@ -1572,7 +1595,6 @@ gegl_node_get_bounding_box (GeglNode *self)
 void
 gegl_node_process (GeglNode *self)
 {
-  /* XXX: should perhaps use the internal processor? */
   GeglProcessor *processor;
 
   g_return_if_fail (GEGL_IS_NODE (self));
@@ -1871,6 +1893,7 @@ gegl_node_add_child (GeglNode *self,
   child->priv->parent = self;
 
   child->dont_cache = self->dont_cache;
+  child->use_opencl = self->use_opencl;
 
   return child;
 }
@@ -1980,6 +2003,7 @@ gegl_node_create_child (GeglNode    *self,
   if (ret && self)
     {
       ret->dont_cache = self->dont_cache;
+      ret->use_opencl = self->use_opencl;
     }
   return ret;
 }

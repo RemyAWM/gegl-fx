@@ -11,8 +11,6 @@ AM_CPPFLAGS = \
 
 AM_CFLAGS = $(DEP_CFLAGS) $(BABL_CFLAGS)
 
-LIBS = $(OPENCL_LIBS)
-
 libcl_publicdir = $(includedir)/gegl-$(GEGL_API_VERSION)/opencl
 
 libcl_public_HEADERS = \
@@ -29,11 +27,13 @@ libcl_public_HEADERS = \
 	opencl.h
 
 libcl_sources = \
+	gegl-cl.c \
 	gegl-cl-types.h \
 	gegl-cl-init.c \
 	gegl-cl-init.h \
 	gegl-cl-color.c \
-	gegl-cl-color.h
+	gegl-cl-color.h \
+	gegl-cl-introspection-support.h
 
 noinst_LTLIBRARIES = libcl.la
 
