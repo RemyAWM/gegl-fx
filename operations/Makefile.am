@@ -4,7 +4,8 @@ SUBDIRS = \
 	generated	\
 	seamless-clone \
 	transform \
-	external
+	external	\
+	fx
 
 if ENABLE_WORKSHOP
 SUBDIRS+= workshop
