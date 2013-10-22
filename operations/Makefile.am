@@ -2,8 +2,8 @@ SUBDIRS = \
 	core		\
 	common		\
 	generated	\
-	seamless-clone \
-	transform \
+	seamless-clone 	\
+	transform 	\
 	external	\
 	fx
 

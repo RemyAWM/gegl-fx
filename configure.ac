@@ -1162,6 +1162,7 @@ operations/common/Makefile
 operations/common/perlin/Makefile
 operations/seamless-clone/Makefile
 operations/external/Makefile
+operations/fx/Makefile
 operations/generated/Makefile
 operations/transform/Makefile
 operations/workshop/Makefile
