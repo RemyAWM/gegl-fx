@@ -97,17 +97,20 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(opdir)"
 LTLIBRARIES = $(op_LTLIBRARIES)
+fx_color_la_LIBADD =
+fx_color_la_SOURCES = fx-color.c
+fx_color_la_OBJECTS = fx-color.lo
+AM_V_lt = $(am__v_lt_$(V))
+am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
+am__v_lt_0 = --silent
 am__DEPENDENCIES_1 =
 am__DEPENDENCIES_2 =  \
 	$(top_builddir)/gegl/libgegl-$(GEGL_API_VERSION).la \
 	$(am__DEPENDENCIES_1)
 am__DEPENDENCIES_3 = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 fx_fill_la_DEPENDENCIES = $(am__DEPENDENCIES_3)
-am_fx_fill_la_OBJECTS = fx-fill.lo
+am_fx_fill_la_OBJECTS = fx-color.lo
 fx_fill_la_OBJECTS = $(am_fx_fill_la_OBJECTS)
-AM_V_lt = $(am__v_lt_$(V))
-am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
-am__v_lt_0 = --silent
 DEFAULT_INCLUDES = -I. -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -134,8 +137,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = $(fx_fill_la_SOURCES)
-DIST_SOURCES = $(fx_fill_la_SOURCES)
+SOURCES = fx-color.c $(fx_fill_la_SOURCES)
+DIST_SOURCES = fx-color.c $(fx_fill_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -165,7 +168,7 @@ CATALOGS =
 CATOBJEXT = .gmo
 CC = gcc -std=gnu99
 CCDEPMODE = depmode=gcc3
-CFLAGS = -march=native -O3 -mmmx -msse -ftree-vectorize -ffast-math -Wall -Wdeclaration-after-statement -Wmissing-prototypes -Wmissing-declarations -Winit-self -Wpointer-arith -Wold-style-definition -DG_LOG_DOMAIN=\"GEGL-\"__FILE__
+CFLAGS = -g -O2 -mmmx -msse -ftree-vectorize -ffast-math -Wall -Wdeclaration-after-statement -Wmissing-prototypes -Wmissing-declarations -Winit-self -Wpointer-arith -Wold-style-definition -DG_LOG_DOMAIN=\"GEGL-\"__FILE__
 CPP = gcc -std=gnu99 -E
 CPPFLAGS = 
 CXX = g++
@@ -432,8 +435,10 @@ AM_LDFLAGS = -avoid-version -export-dynamic -module $(no_undefined)
 ext_dir = $(libdir)/gegl-0.3
 
 # No dependencies
-ops = fx-fill.la
-fx_fill_la_SOURCES = fx-fill.c
+
+# No dependencies
+ops = fx-fill.la fx-color.la
+fx_fill_la_SOURCES = fx-color.c
 fx_fill_la_LIBADD = $(op_libs)
 opdir = $(libdir)/gegl-0.3
 op_LTLIBRARIES = $(ops)
@@ -504,6 +509,8 @@ clean-opLTLIBRARIES:
 	  echo "rm -f \"$${dir}/so_locations\""; \
 	  rm -f "$${dir}/so_locations"; \
 	done
+fx-color.la: $(fx_color_la_OBJECTS) $(fx_color_la_DEPENDENCIES) $(EXTRA_fx_color_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_color_la_OBJECTS) $(fx_color_la_LIBADD) $(LIBS)
 fx-fill.la: $(fx_fill_la_OBJECTS) $(fx_fill_la_DEPENDENCIES) $(EXTRA_fx_fill_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_fill_la_OBJECTS) $(fx_fill_la_LIBADD) $(LIBS)
 
@@ -513,7 +520,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-include ./$(DEPDIR)/fx-fill.Plo
+include ./$(DEPDIR)/fx-color.Plo
 
 .c.o:
 	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
