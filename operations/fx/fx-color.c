@@ -21,7 +21,7 @@
 
 #ifdef GEGL_CHANT_PROPERTIES
 gegl_chant_color(color, _("Color"), "red", _("Fill color"))
-gegl_chant_int_ui(type, _("Fill type"), 0, 2, 0, 0, 2, 1.0, _("0 - soft; 1 - hard; 2 - over"))
+gegl_chant_int_ui(type, _("Fill type"), 0, 1, 0, 0, 1, 1.0, _("0 - soft; 1 - hard;"))
 #else
 
 #define GEGL_CHANT_TYPE_POINT_FILTER
@@ -54,12 +54,15 @@ process (GeglOperation       *operation,
 	  while (samples--)
 	    {
 		  if(in[3]!=0)
+		  {
 	      out[0] =  line_color[0];
 	      out[1] =  line_color[1];
 	      out[2] =  line_color[2];
-
-	      out[3] = in[3];
-
+	      if (o->type == 1)
+	    	  out[3] = 1.0;
+	      else
+	    	  out[3] = in[3];
+		  }
 	      in += 4;
 	      out+= 4;
 	    }

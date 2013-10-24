@@ -109,8 +109,11 @@ am__DEPENDENCIES_2 =  \
 	$(am__DEPENDENCIES_1)
 am__DEPENDENCIES_3 = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 fx_fill_la_DEPENDENCIES = $(am__DEPENDENCIES_3)
-am_fx_fill_la_OBJECTS = fx-color.lo
+am_fx_fill_la_OBJECTS = fx-gradient.lo
 fx_fill_la_OBJECTS = $(am_fx_fill_la_OBJECTS)
+fx_gradient_la_LIBADD =
+fx_gradient_la_SOURCES = fx-gradient.c
+fx_gradient_la_OBJECTS = fx-gradient.lo
 DEFAULT_INCLUDES = -I. -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -137,8 +140,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_$(V))
 am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = fx-color.c $(fx_fill_la_SOURCES)
-DIST_SOURCES = fx-color.c $(fx_fill_la_SOURCES)
+SOURCES = fx-color.c $(fx_fill_la_SOURCES) fx-gradient.c
+DIST_SOURCES = fx-color.c $(fx_fill_la_SOURCES) fx-gradient.c
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -160,8 +163,8 @@ AUTOMAKE = ${SHELL} /home/remy/git/gegl/missing --run automake-1.11
 AVFORMAT_CFLAGS = 
 AVFORMAT_LIBS = 
 AWK = mawk
-BABL_CFLAGS = -I/opt/babl/include/babl-0.1  
-BABL_LIBS = -L/opt/babl/lib -lbabl-0.1 -lm  
+BABL_CFLAGS = -I/usr/local/include/babl-0.1  
+BABL_LIBS = -L/usr/local/lib -lbabl-0.1 -lm  
 CAIRO_CFLAGS = -I/usr/include/cairo -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -I/usr/include/pixman-1 -I/usr/include/freetype2 -I/usr/include/libpng12  
 CAIRO_LIBS = -lcairo  
 CATALOGS = 
@@ -309,7 +312,7 @@ PATH_SEPARATOR = :
 PERL = /usr/bin/perl
 PKG_CONFIG = /usr/bin/pkg-config
 PKG_CONFIG_LIBDIR = 
-PKG_CONFIG_PATH = /opt/babl/lib/pkgconfig:/opt/gegl-03/lib/pkgconfig:/opt/gimp-git/lib/pkgconfig:
+PKG_CONFIG_PATH = 
 PNG_CFLAGS = -I/usr/include/libpng12  
 PNG_LIBS = -lpng12  
 POFILES = 
@@ -391,11 +394,11 @@ oldincludedir = /usr/include
 pdfdir = ${docdir}
 pkgpyexecdir = ${pyexecdir}/gegl
 pkgpythondir = ${pythondir}/gegl
-prefix = /opt/gegl-03
+prefix = /usr/local
 program_transform_name = s,x,x,
 psdir = ${docdir}
-pyexecdir = ${exec_prefix}/lib/python2.7/site-packages
-pythondir = ${prefix}/lib/python2.7/site-packages
+pyexecdir = ${exec_prefix}/lib/python2.7/dist-packages
+pythondir = ${prefix}/lib/python2.7/dist-packages
 sbindir = ${exec_prefix}/sbin
 sharedstatedir = ${prefix}/com
 srcdir = .
@@ -437,8 +440,10 @@ ext_dir = $(libdir)/gegl-0.3
 # No dependencies
 
 # No dependencies
-ops = fx-fill.la fx-color.la
-fx_fill_la_SOURCES = fx-color.c
+
+# No dependencies
+ops = fx-fill.la fx-color.la fx-gradient.la
+fx_fill_la_SOURCES = fx-gradient.c
 fx_fill_la_LIBADD = $(op_libs)
 opdir = $(libdir)/gegl-0.3
 op_LTLIBRARIES = $(ops)
@@ -513,6 +518,8 @@ fx-color.la: $(fx_color_la_OBJECTS) $(fx_color_la_DEPENDENCIES) $(EXTRA_fx_color
 	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_color_la_OBJECTS) $(fx_color_la_LIBADD) $(LIBS)
 fx-fill.la: $(fx_fill_la_OBJECTS) $(fx_fill_la_DEPENDENCIES) $(EXTRA_fx_fill_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_fill_la_OBJECTS) $(fx_fill_la_LIBADD) $(LIBS)
+fx-gradient.la: $(fx_gradient_la_OBJECTS) $(fx_gradient_la_DEPENDENCIES) $(EXTRA_fx_gradient_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_gradient_la_OBJECTS) $(fx_gradient_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -521,6 +528,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/fx-color.Plo
+include ./$(DEPDIR)/fx-gradient.Plo
 
 .c.o:
 	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

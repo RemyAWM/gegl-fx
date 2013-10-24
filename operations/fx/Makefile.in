@@ -109,8 +109,11 @@ am__DEPENDENCIES_2 =  \
 	$(am__DEPENDENCIES_1)
 am__DEPENDENCIES_3 = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_2)
 fx_fill_la_DEPENDENCIES = $(am__DEPENDENCIES_3)
-am_fx_fill_la_OBJECTS = fx-color.lo
+am_fx_fill_la_OBJECTS = fx-gradient.lo
 fx_fill_la_OBJECTS = $(am_fx_fill_la_OBJECTS)
+fx_gradient_la_LIBADD =
+fx_gradient_la_SOURCES = fx-gradient.c
+fx_gradient_la_OBJECTS = fx-gradient.lo
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -137,8 +140,8 @@ am__v_CCLD_0 = @echo "  CCLD  " $@;
 AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN   " $@;
-SOURCES = fx-color.c $(fx_fill_la_SOURCES)
-DIST_SOURCES = fx-color.c $(fx_fill_la_SOURCES)
+SOURCES = fx-color.c $(fx_fill_la_SOURCES) fx-gradient.c
+DIST_SOURCES = fx-color.c $(fx_fill_la_SOURCES) fx-gradient.c
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -437,8 +440,10 @@ ext_dir = $(libdir)/gegl-@GEGL_API_VERSION@
 # No dependencies
 
 # No dependencies
-ops = fx-fill.la fx-color.la
-fx_fill_la_SOURCES = fx-color.c
+
+# No dependencies
+ops = fx-fill.la fx-color.la fx-gradient.la
+fx_fill_la_SOURCES = fx-gradient.c
 fx_fill_la_LIBADD = $(op_libs)
 opdir = $(libdir)/gegl-@GEGL_API_VERSION@
 op_LTLIBRARIES = $(ops)
@@ -513,6 +518,8 @@ fx-color.la: $(fx_color_la_OBJECTS) $(fx_color_la_DEPENDENCIES) $(EXTRA_fx_color
 	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_color_la_OBJECTS) $(fx_color_la_LIBADD) $(LIBS)
 fx-fill.la: $(fx_fill_la_OBJECTS) $(fx_fill_la_DEPENDENCIES) $(EXTRA_fx_fill_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_fill_la_OBJECTS) $(fx_fill_la_LIBADD) $(LIBS)
+fx-gradient.la: $(fx_gradient_la_OBJECTS) $(fx_gradient_la_DEPENDENCIES) $(EXTRA_fx_gradient_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK) -rpath $(opdir) $(fx_gradient_la_OBJECTS) $(fx_gradient_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -521,6 +528,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fx-color.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fx-gradient.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

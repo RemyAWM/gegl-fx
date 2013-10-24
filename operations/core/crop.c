@@ -51,9 +51,10 @@ gegl_crop_detect (GeglOperation *operation,
                   gint           y)
 {
   GeglChantO *o = GEGL_CHANT_PROPERTIES (operation);
-  GeglNode   *input_node;
+  GeglNode   *input_node, *aux_node;
 
   input_node = gegl_operation_get_source_node (operation, "input");
+  aux_node = gegl_operation_get_source_node (operation, "aux");
 
   if (input_node)
     return gegl_operation_detect (input_node->operation,
